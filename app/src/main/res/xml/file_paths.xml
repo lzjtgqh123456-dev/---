@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 分享时把解密后的临时文件放到 cache/vault_share -->
+    <cache-path name="vault_share" path="vault_share/" />
+    <cache-path name="vault_preview" path="vault_preview/" />
+    <!-- 导出的课表 xlsx -->
+    <cache-path name="schedule" path="schedule/" />
+    <!-- 拍照临时输出 -->
+    <cache-path name="capture" path="capture/" />
+</paths>

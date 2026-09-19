@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- 证件图片与数据库不进入云备份（隐私） -->
+    <exclude domain="database" path="." />
+    <exclude domain="file" path="vault" />
+    <exclude domain="sharedpref" path="." />
+</full-backup-content>

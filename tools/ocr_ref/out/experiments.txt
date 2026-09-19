@@ -1,0 +1,327 @@
+
+==============================================================================
+== E0  model I/O names + shapes (onnxruntime 1.30.0)
+==============================================================================
+onnxruntime 1.30.0 | numpy 2.5.3 | cv2 5.0.0 | python 3.13.2
+- ch_PP-OCRv4_det_infer.onnx (4745517 bytes, sha256 below)
+    INPUT  name=x                        shape=['p2o.DynamicDimension.0', 3, 'p2o.DynamicDimension.1', 'p2o.DynamicDimension.2'] type=tensor(float)
+    OUTPUT name=sigmoid_0.tmp_0          shape=['p2o.DynamicDimension.3', 1, 'p2o.DynamicDimension.4', 'p2o.DynamicDimension.5'] type=tensor(float)
+    metadata keys=[]
+- ch_PP-OCRv4_rec_infer.onnx (10857958 bytes, sha256 below)
+    INPUT  name=x                        shape=['p2o.DynamicDimension.0', 3, '?', 'p2o.DynamicDimension.1'] type=tensor(float)
+    OUTPUT name=softmax_11.tmp_0         shape=['p2o.DynamicDimension.2', 'p2o.DynamicDimension.3', 6625] type=tensor(float)
+    metadata keys=['character']
+    embedded dict: 6623 chars; equals ppocr_keys_v1.txt: True
+- ch_ppocr_mobile_v2.0_cls_infer.onnx (585532 bytes, sha256 below)
+    INPUT  name=x                        shape=[None, 3, '?', '?'] type=tensor(float)
+    OUTPUT name=save_infer_model/scale_0.tmp_1 shape=[None, 2] type=tensor(float)
+    metadata keys=[]
+    sha256 d2a7720d45a54257208b1e13e36a8479...  ch_PP-OCRv4_det_infer.onnx
+    sha256 48fc40f24f6d2a207a2b1091d3437eb3...  ch_PP-OCRv4_rec_infer.onnx
+    sha256 e47acedf663230f8863ff1ab0e64dd2d...  ch_ppocr_mobile_v2.0_cls_infer.onnx
+    sha256 a1c84d9bdb9ab29043c58896224d3294...  ppocr_keys_v1.txt
+  rel_a.png 900x400 -> det in (1, 3, 384, 896) out (1, 1, 384, 896) | rec crop 390x50 in (1, 3, 48, 375) out (1, 47, 6625)
+      shape_info (src_h,src_w,ratio_h,ratio_w,resize_h,resize_w)=(400, 900, 0.96, 0.9955555555555555, 384, 896)
+  rel_b.png 1000x480 -> det in (1, 3, 448, 960) out (1, 1, 448, 960) | rec crop 390x50 in (1, 3, 48, 375) out (1, 47, 6625)
+      shape_info (src_h,src_w,ratio_h,ratio_w,resize_h,resize_w)=(480, 1000, 0.9333333333333333, 0.96, 448, 960)
+
+==============================================================================
+== E1  channel order BGR (PaddleOCR training) vs RGB (RapidOCR/PIL, Android Bitmap)
+==============================================================================
+  rel_a.png        BGR  boxes= 3 det_mean=0.8840 rec_mean=0.9961
+  rel_a.png        RGB  boxes= 3 det_mean=0.8840 rec_mean=0.9961
+      boxes: bgr=3 rgb=3  exactly-equal-boxes=3  rec texts identical=True
+  rel_b.png        BGR  boxes= 3 det_mean=0.7993 rec_mean=0.9571
+  rel_b.png        RGB  boxes= 3 det_mean=0.7923 rec_mean=0.9542
+      boxes: bgr=3 rgb=3  exactly-equal-boxes=1  rec texts identical=False
+        RGB-only box [82, 55, 763, 103, 760, 149, 79, 101] -> '机器学习 Machine Learning 2024'
+        RGB-only box [63, 326, 417, 352, 414, 388, 60, 362] -> 'ABC abc 123 Test'
+        BGR-only box [83, 56, 763, 103, 760, 148, 80, 101] -> '机器学习 Machine Learning 2024'
+        BGR-only box [63, 326, 416, 352, 413, 388, 60, 362] -> 'ABC abc 123 Test'
+  real_screenshot  BGR  boxes=20 det_mean=0.7880 rec_mean=0.9079
+  real_screenshot  RGB  boxes=20 det_mean=0.7758 rec_mean=0.9527
+      boxes: bgr=20 rgb=20  exactly-equal-boxes=7  rec texts identical=False
+        RGB-only box [2326, 35, 2461, 35, 2461, 60, 2326, 60] -> '12231yuftghg'
+        RGB-only box [1265, 40, 1298, 40, 1298, 57, 1265, 57] -> '普通'
+        RGB-only box [2484, 52, 2540, 52, 2540, 75, 2484, 75] -> '1st'
+        RGB-only box [63, 549, 263, 549, 263, 580, 63, 580] -> '任务：逃离直播室'
+        BGR-only box [2329, 35, 2461, 35, 2461, 60, 2329, 60] -> '12231yuftghg'
+        BGR-only box [2487, 52, 2540, 52, 2540, 75, 2487, 75] -> '1st'
+        BGR-only box [60, 549, 263, 549, 263, 580, 60, 580] -> '任务：逃离直播室'
+        BGR-only box [1306, 1138, 1342, 1138, 1342, 1164, 1306, 1164] -> '2'
+      rec-only on the SAME 20 crops: mean score bgr=0.9079 rgb=0.9072 | rgb wins 13, bgr wins 7, ties 0 | texts equal=False
+
+==============================================================================
+== E2  det normalisation: ImageNet mean/std (upstream) vs plain x/255
+==============================================================================
+--- rel_a.png 900x400
+    imagenet  contours=3   boxes=3   det_score mean=0.8840 min=0.8454 probmax=1.0000
+    plain/255 contours=3   boxes=3   det_score mean=0.9158 min=0.9103 probmax=1.0000
+--- rel_b.png 1000x480
+    imagenet  contours=3   boxes=3   det_score mean=0.7993 min=0.7651 probmax=1.0000
+    plain/255 contours=3   boxes=3   det_score mean=0.8445 min=0.8031 probmax=1.0000
+--- real_screenshot 2560x1600
+    imagenet  contours=26  boxes=20  det_score mean=0.7880 min=0.6288 probmax=1.0000
+    plain/255 contours=28  boxes=14  det_score mean=0.7973 min=0.6628 probmax=1.0000
+
+==============================================================================
+== E3  det resize rule to a multiple of 32 (truncate-then-round, and the rounding mode)
+==============================================================================
+--- rel_a.png src=900x400 ratio=1.000000  t=(400,900)
+    UPSTREAM int(round(t/32))*32 (half-to-even)  -> 896x384  boxes=3
+    half-UP (Kotlin Math.round)                  -> 896x416  boxes=3  max|corner|=1.0 IoU=0.9508298433379867
+    ceil                                         -> 928x416  boxes=3  max|corner|=3.0 IoU=0.9003412439894525
+    no inner int() truncation, half-even         -> 896x384  boxes=3  max|corner|=0.0 IoU=1.0
+--- rel_b.png src=1000x480 ratio=0.960000  t=(460,960)
+    UPSTREAM int(round(t/32))*32 (half-to-even)  -> 960x448  boxes=3
+    half-UP (Kotlin Math.round)                  -> 960x448  boxes=3  max|corner|=0.0 IoU=1.0
+    ceil                                         -> 960x480  boxes=3  max|corner|=2.0 IoU=0.9800072088300366
+    no inner int() truncation, half-even         -> 960x448  boxes=3  max|corner|=0.0 IoU=1.0
+--- D:\ai\projects\study-assistant\tools\ocr_ref\img\_real_screenshot.png src=2560x1600 ratio=0.375000  t=(600,960)
+    UPSTREAM int(round(t/32))*32 (half-to-even)  -> 960x608  boxes=20
+    half-UP (Kotlin Math.round)                  -> 960x608  boxes=20  max|corner|=0.0 IoU=1.0
+    ceil                                         -> 960x608  boxes=20  max|corner|=0.0 IoU=1.0
+    no inner int() truncation, half-even         -> 960x608  boxes=20  max|corner|=0.0 IoU=1.0
+--- D:\ai\projects\study-assistant\tools\ocr_ref\out\_synth_1024x495.png src=1024x495 ratio=0.937500  t=(464,960)
+    UPSTREAM int(round(t/32))*32 (half-to-even)  -> 960x448  boxes=3
+    half-UP (Kotlin Math.round)                  -> 960x480  boxes=3  max|corner|=1.0 IoU=0.9562249302872886
+    ceil                                         -> 960x480  boxes=3  max|corner|=1.0 IoU=0.9562249302872886
+    no inner int() truncation, half-even         -> 960x480  boxes=3  max|corner|=1.0 IoU=0.9562249302872886
+
+==============================================================================
+== E4  DB post-process parameters: spec values vs RapidOCR 1.2.3 config defaults
+==============================================================================
+    SPEC thresh .3 box .6 unclip 1.5 nodil rel_a  contours=3   boxes=3  
+    SPEC thresh .3 box .6 unclip 1.5 nodil real   contours=26  boxes=20 
+    RapidOCR .3/.5/1.6 dilate              rel_a  contours=3   boxes=3  
+    RapidOCR .3/.5/1.6 dilate              real   contours=25  boxes=20 
+    PaddleOCR-server .3/.6/2.0             rel_a  contours=3   boxes=3  
+    PaddleOCR-server .3/.6/2.0             real   contours=26  boxes=20 
+    box_thresh 0.5 nodil                   rel_a  contours=3   boxes=3  
+    box_thresh 0.5 nodil                   real   contours=26  boxes=21 
+
+==============================================================================
+== E5  rec input height 48 (PP-OCRv4) vs 32 vs 64 (same crops, confidence comparison)
+==============================================================================
+--- rel_a.png (3 crops)
+    img_h=48  mean conf=0.9961  identical to h=48: -  sample=0.9961 '今天天气很好我们去公园散步'
+    img_h=32  mean conf=0.9880  identical to h=48: True  sample=0.9796 '今天天气很好我们去公园散步'
+    img_h=64  mean conf=0.9839  identical to h=48: True  sample=0.9878 '今天天气很好我们去公园散步'
+--- real_screenshot (20 crops)
+    img_h=48  mean conf=0.9079  identical to h=48: -  sample=0.9929 '按\\键可隐藏排名'
+    img_h=32  mean conf=0.8712  identical to h=48: False  sample=0.9814 '按\\键可隐藏排名'
+    img_h=64  mean conf=0.8813  identical to h=48: False  sample=0.9935 '按\\键可隐藏排名'
+
+==============================================================================
+== E6  rec width rule: PaddleOCR pad-to-320 vs RapidOCR (single crop) int(48*r)
+==============================================================================
+--- rel_a.png (3 crops)
+    mean rec score: paddleocr=0.9961  rapidocr=0.9966  identical texts: 3/3
+--- D:\ai\projects\study-assistant\tools\ocr_ref\img\_real_screenshot.png (20 crops)
+    mean rec score: paddleocr=0.9079  rapidocr=0.9367  identical texts: 15/20
+      crop  3 W:320->110  paddleocr 0.958 '1st'  |  rapidocr 0.916 '1 st'
+      crop  4 W:320->124  paddleocr 0.976 '攻：1500%'  |  rapidocr 0.994 '攻：1500'
+      crop  7 W:320->66   paddleocr 0.382 '2'  |  rapidocr 0.975 '02'
+      crop 14 W:345->344  paddleocr 0.496 '台台台台台食食食'  |  rapidocr 0.468 '台台台台合食会食'
+      crop 17 W:320->156  paddleocr 0.950 '0 /85000'  |  rapidocr 0.931 '0 / 85000'
+
+==============================================================================
+== E7  unclip: pure-numpy miter offset (this ref) vs pyclipper JT_ROUND
+==============================================================================
+    pyclipper version: 1.4.0
+    rel_a.png   pyclipper int   boxes=3 max|corner|=1.000 px minIoU=0.972741 texts_equal=True
+    rel_a.png   pyclipper x1000 boxes=3 max|corner|=0.000 px minIoU=1.000000 texts_equal=True
+      miter boxes:     [[45, 76, 659, 75, 659, 117, 45, 118], [46, 175, 659, 175, 659, 216, 46, 216], [44, 275, 608, 275, 608, 316, 44, 316]]
+    rel_b.png   pyclipper int   boxes=3 max|corner|=1.000 px minIoU=0.954838 texts_equal=False
+    rel_b.png   pyclipper x1000 boxes=3 max|corner|=0.000 px minIoU=1.000000 texts_equal=True
+      miter boxes:     [[83, 56, 763, 103, 760, 148, 80, 101], [83, 191, 560, 225, 558, 266, 80, 233], [63, 326, 416, 352, 413, 388, 60, 362]]
+
+==============================================================================
+== E8  tall-crop rule: h/w >= 1.5 -> rot90 (PaddleOCR/RapidOCR get_rotate_crop_image)
+==============================================================================
+    tall 40x320  warp target=40x320 (h/w=8.00) -> returned shape (h,w)=(40, 320)  rot90_applied=True
+    wide 300x80  warp target=300x80 (h/w=0.27) -> returned shape (h,w)=(80, 300)  rot90_applied=False
+
+==============================================================================
+== E9  determinism: two independent runs produce identical boxes/scores/texts
+==============================================================================
+    rel_a.png   identical=True boxes=3
+    rel_b.png   identical=True boxes=3
+
+==============================================================================
+== E10 end-to-end cross-check vs rapidocr_onnxruntime 1.2.3 (v4 models injected)
+==============================================================================
+    rapidocr_onnxruntime ?
+    NOTE: its config defaults are limit_side_len=736/limit_type=min, box_thresh=0.5,
+          unclip_ratio=1.6, use_dilation=true, and it feeds RGB (PIL).
+    rapidocr-defaults rel_a.png   boxes=3
+        [0] score=0.924502717597144 '今天天气很好我们去公园散步'
+            box=[[42.0, 74.0], [662.0, 72.0], [662.0, 118.0], [42.0, 120.0]]
+        [1] score=0.926940551825932 '识别测试第一行中文文字内容'
+            box=[[43.0, 173.0], [661.0, 173.0], [661.0, 218.0], [43.0, 218.0]]
+        [2] score=0.9221218686837417 '第三行机器学习与深度学习'
+            box=[[42.0, 272.0], [610.0, 273.0], [610.0, 319.0], [42.0, 318.0]]
+    rapidocr-defaults rel_b.png   boxes=5
+        [0] score=0.7990416765213013 '机器学习'
+            box=[[84.0, 57.0], [260.0, 69.0], [257.0, 112.0], [80.0, 99.0]]
+        [1] score=0.9400050885537091 'Machine Learning'
+            box=[[266.0, 65.0], [648.0, 99.0], [645.0, 142.0], [262.0, 108.0]]
+        [2] score=0.7998686909675599 '2024'
+            box=[[655.0, 97.0], [762.0, 103.0], [760.0, 144.0], [653.0, 138.0]]
+        [3] score=0.9331404149532319 'OCR test: 识别率 99.8%'
+            box=[[81.0, 189.0], [562.0, 223.0], [559.0, 269.0], [78.0, 234.0]]
+        [4] score=0.9217978330219493 'ABC abc 123 Test'
+            box=[[62.0, 325.0], [419.0, 350.0], [417.0, 389.0], [60.0, 364.0]]
+    spec-params(box.6,unclip1.5) rel_a.png   boxes=3
+        [0] score=0.924502717597144 '今天天气很好我们去公园散步'
+            box=[[42.0, 74.0], [662.0, 72.0], [662.0, 118.0], [42.0, 120.0]]
+        [1] score=0.926940551825932 '识别测试第一行中文文字内容'
+            box=[[43.0, 173.0], [661.0, 173.0], [661.0, 218.0], [43.0, 218.0]]
+        [2] score=0.9221218686837417 '第三行机器学习与深度学习'
+            box=[[42.0, 272.0], [610.0, 273.0], [610.0, 319.0], [42.0, 318.0]]
+    spec-params(box.6,unclip1.5) rel_b.png   boxes=5
+        [0] score=0.7990416765213013 '机器学习'
+            box=[[84.0, 57.0], [260.0, 69.0], [257.0, 112.0], [80.0, 99.0]]
+        [1] score=0.9400050885537091 'Machine Learning'
+            box=[[266.0, 65.0], [648.0, 99.0], [645.0, 142.0], [262.0, 108.0]]
+        [2] score=0.7998686909675599 '2024'
+            box=[[655.0, 97.0], [762.0, 103.0], [760.0, 144.0], [653.0, 138.0]]
+        [3] score=0.9331404149532319 'OCR test: 识别率 99.8%'
+            box=[[81.0, 189.0], [562.0, 223.0], [559.0, 269.0], [78.0, 234.0]]
+        [4] score=0.9217978330219493 'ABC abc 123 Test'
+            box=[[62.0, 325.0], [419.0, 350.0], [417.0, 389.0], [60.0, 364.0]]
+
+==============================================================================
+== E11 upstream source citations (installed rapidocr_onnxruntime 1.2.3)
+==============================================================================
+--- ch_ppocr_v3_det/utils.py : class NormalizeImage
+    class NormalizeImage():
+        """ normalize image such as substract mean, divide std"""
+    
+        def __init__(self, scale=None, mean=None, std=None, order='chw'):
+            if isinstance(scale, str):
+                scale = eval(scale)
+            self.scale = np.float32(scale if scale is not None else 1.0 / 255.0)
+            mean = mean if mean is not None else [0.485, 0.456, 0.406]
+            std = std if std is not None else [0.229, 0.224, 0.225]
+    
+            shape = (3, 1, 1) if order == 'chw' else (1, 1, 3)
+            self.mean = np.array(mean).reshape(shape).astype('float32')
+            self.std = np.array(std).reshape(shape).astype('float32')
+    
+        def __call__(self, data):
+            img = np.array(data['image']).astype(np.float32)
+            data['image'] = (img * self.scale - self.mean) / self.std
+            return data
+    
+    
+    class ToCHWImage():
+        """ convert hwc image to chw image"""
+        def __init__(self):
+            pass
+    
+        def __call__(self, data):
+--- ch_ppocr_v3_det/utils.py : def resize_image_type0
+        def resize_image_type0(self, img):
+            """
+            resize image to a size multiple of 32 which is required by the network
+            args:
+                img(array): array with shape [h, w, c]
+            return(tuple):
+                img, (ratio_h, ratio_w)
+            """
+            limit_side_len = self.limit_side_len
+            h, w = img.shape[:2]
+    
+            # limit the max side
+            if self.limit_type == 'max':
+                if max(h, w) > limit_side_len:
+                    if h > w:
+                        ratio = float(limit_side_len) / h
+                    else:
+                        ratio = float(limit_side_len) / w
+                else:
+                    ratio = 1.
+            else:
+                if min(h, w) < limit_side_len:
+                    if h < w:
+                        ratio = float(limit_side_len) / h
+                    else:
+                        ratio = float(limit_side_len) / w
+                else:
+                    ratio = 1.
+            resize_h = int(h * ratio)
+            resize_w = int(w * ratio)
+    
+            resize_h = int(round(resize_h / 32) * 32)
+            resize_w = int(round(resize_w / 32) * 32)
+    
+--- ch_ppocr_v3_det/utils.py : self.min_size = 
+            self.min_size = 3
+            self.score_mode = score_mode
+    
+            if use_dilation:
+                self.dilation_kernel = np.array([[1, 1], [1, 1]])
+            else:
+--- ch_ppocr_v3_det/utils.py : if sside < self.min_size + 2
+                if sside < self.min_size + 2:
+                    continue
+--- ch_ppocr_v3_det/utils.py : def box_score_fast
+        def box_score_fast(self, bitmap, _box):
+            h, w = bitmap.shape[:2]
+            box = _box.copy()
+            xmin = np.clip(np.floor(box[:, 0].min()).astype(np.int32), 0, w - 1)
+            xmax = np.clip(np.ceil(box[:, 0].max()).astype(np.int32), 0, w - 1)
+            ymin = np.clip(np.floor(box[:, 1].min()).astype(np.int32), 0, h - 1)
+--- ch_ppocr_v3_rec/text_recognize.py : def resize_norm_img
+        def resize_norm_img(self, img, max_wh_ratio):
+            img_channel, img_height, img_width = self.rec_image_shape
+            assert img_channel == img.shape[2]
+    
+            img_width = int(img_height * max_wh_ratio)
+    
+            h, w = img.shape[:2]
+            ratio = w / float(h)
+            if math.ceil(img_height * ratio) > img_width:
+                resized_w = img_width
+            else:
+                resized_w = int(math.ceil(img_height * ratio))
+    
+            resized_image = cv2.resize(img, (resized_w, img_height))
+            resized_image = resized_image.astype('float32')
+            resized_image = resized_image.transpose((2, 0, 1)) / 255
+            resized_image -= 0.5
+            resized_image /= 0.5
+    
+            padding_im = np.zeros((img_channel, img_height, img_width),
+                                  dtype=np.float32)
+            padding_im[:, :, 0:resized_w] = resized_image
+--- ch_ppocr_v3_rec/utils.py : self.character_str.append
+                        self.character_str.append(line)
+            else:
+                self.character_str = character_dict_path
+--- ch_ppocr_v3_rec/utils.py : dict_character = ['blank']
+            dict_character = ['blank'] + dict_character
+            return dict_character
+--- rapid_ocr_api.py : def sorted_boxes
+        def sorted_boxes(dt_boxes):
+            """
+            Sort text boxes in order from top to bottom, left to right
+            args:
+                dt_boxes(array):detected text boxes with shape [4, 2]
+            return:
+--- ch_ppocr_v3_det/config.yaml (RapidOCR defaults)
+    limit_side_len: 736
+    limit_type: min
+    std: [0.229, 0.224, 0.225]
+    mean: [0.485, 0.456, 0.406]
+    scale: 1./255.
+    thresh: 0.3
+    box_thresh: 0.5
+    max_candidates: 1000
+    unclip_ratio: 1.6
+    use_dilation: true
+    score_mode: "fast"
+--- ch_ppocr_v3_rec/config.yaml
+    rec_img_shape: [3, 48, 320]
+    rec_batch_num: 6

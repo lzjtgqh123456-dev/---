@@ -1,0 +1,26 @@
+# ---------- 构建产物 ----------
+build/
+.gradle/
+.kotlin/
+local.properties
+
+# ---------- 打包成品（APK 走 GitHub Release，不进仓库）----------
+dist/
+*.apk
+*.aab
+
+# ---------- 签名密钥：绝对不要提交 ----------
+keystore/
+*.jks
+*.keystore
+
+# ---------- Python 环境 / 缓存 ----------
+tools/ocrenv/
+__pycache__/
+*.pyc
+
+# ---------- IDE / 系统 ----------
+.idea/
+*.iml
+.DS_Store
+.vscode/

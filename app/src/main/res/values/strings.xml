@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">留学助手-乐</string>
+    <string name="nav_files">证件</string>
+    <string name="nav_dict">词典</string>
+    <string name="nav_study">学业</string>
+    <string name="nav_net">搜索</string>
+    <string name="nav_memo">备忘</string>
+</resources>

@@ -186,10 +186,8 @@ py "...build.py" "D:\ai\projects\study-assistant" :app:testDebugUnitTest
 **其他**
 - [ ] `menuAnchor()` 有 deprecation 警告，待换新 API
 
+
+
 ## （放心，这上面的内容等我心情好了指定会做，但我在俄罗斯每一天心情都不是很好）
 
-## 签名密钥
 
-`keystore/release.keystore`（密码 `testpass123`，别名 `testkey`）**仅测试用**。
-正式发布必须新建自己的 keystore 并离线备份——丢失将无法更新应用。
-该目录已在 `.gitignore` 中排除。

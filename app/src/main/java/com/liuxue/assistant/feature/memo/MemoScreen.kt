@@ -307,9 +307,7 @@ private fun MemoThumb(a: MemoAttachment, vm: MemoViewModel) {
     var bmp by remember(a.id) { mutableStateOf<android.graphics.Bitmap?>(null) }
     LaunchedEffect(a.id) {
         vm.loadAttachmentBytes(a) { bytes ->
-            bmp = bytes?.let {
-                runCatching { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) }.getOrNull()
-            }
+            bmp = bytes?.let { com.liuxue.assistant.ui.decodeThumbBytes(it) }
         }
     }
     Box(

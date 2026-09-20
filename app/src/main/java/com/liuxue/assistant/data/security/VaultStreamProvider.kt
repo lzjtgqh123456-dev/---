@@ -56,8 +56,8 @@ class VaultStreamProvider : ContentProvider() {
         val rel = uri.pathSegments.joinToString("/")
         val src = runCatching { VaultStore(ctx).fileFor(rel) }.getOrNull()
         val name = uri.getQueryParameter("name") ?: src?.name ?: "file"
-        // 密文 = [12 字节 IV][正文][16 字节 tag]
-        val size = (src?.length() ?: 0L).let { if (it > 28) it - 28 else 0L }
+        // 明文长度按实际格式算（v2 分块 / v1 旧单块）
+        val size = src?.let { VaultCrypto.plaintextSize(it) } ?: 0L
         val cols = projection ?: arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)
         val cursor = MatrixCursor(cols)
         val row = cursor.newRow()

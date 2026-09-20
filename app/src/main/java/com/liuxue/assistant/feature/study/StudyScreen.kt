@@ -1,5 +1,7 @@
 package com.liuxue.assistant.feature.study
 
+import android.widget.Toast
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -1729,7 +1731,12 @@ private fun MaterialsDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val list by vm.materials.collectAsState(initial = emptyList())
+
+    // 只订阅「这门课」的资料。
+    // 以前用的是 vm.materials（跟着 openMaterials() 那个全局"当前查看课程"走）——
+    // 从课程详情打开弹窗时没人设置它，于是列表恒空、导入完也看不到刚加的条目。
+    val list by remember(courseId) { vm.materialsFlow(courseId) }
+        .collectAsState(initial = emptyList())
     var kind by remember { mutableStateOf(com.liuxue.assistant.data.study.CourseMaterial.KIND_SLIDE) }
     val course = courses.firstOrNull { it.id == courseId }
     var viewerBytes by remember { mutableStateOf<ByteArray?>(null) }
@@ -1748,7 +1755,10 @@ private fun MaterialsDialog(
                     if (i >= 0 && c.moveToFirst()) c.getString(i)?.let { name = it }
                 }
             }
-            vm.addMaterial(courseId, uri, name, mime, kind)
+            vm.addMaterial(courseId, uri, name, mime, kind) { _, msg ->
+                // 就地 Toast：主界面的 Snackbar 会被这个弹窗挡住，用户看不见
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -1849,7 +1859,11 @@ private fun MaterialsDialog(
     pendingDelete?.let { m ->
         ConfirmDeleteDialog(
             text = "删除资料「" + m.name + "」？文件会一起删。",
-            onConfirm = { vm.deleteMaterial(m) },
+            onConfirm = {
+                vm.deleteMaterial(m) { msg ->
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                }
+            },
             onDismiss = { pendingDelete = null }
         )
     }
@@ -1886,11 +1900,7 @@ private fun ThumbFromBytes(
     LaunchedEffect(key) {
         if (mime.startsWith("image/")) {
             loader { bytes ->
-                bmp = bytes?.let {
-                    runCatching {
-                        android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size)
-                    }.getOrNull()
-                }
+                bmp = bytes?.let { com.liuxue.assistant.ui.decodeThumbBytes(it) }
             }
         }
     }

@@ -94,6 +94,12 @@ fun UriThumb(
 }
 
 
+/** 缩略图下采样解码（长边 ≤ maxSide）：整张解码大图又慢又容易 OOM */
+fun decodeThumbBytes(bytes: ByteArray, maxSide: Int = 256): android.graphics.Bitmap? =
+    runCatching {
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, thumbOptions(bytes, maxSide))
+    }.getOrNull()
+
 /** 缩略图下采样：长边最多 256px，避免大图 OOM */
 private fun thumbOptions(bytes: ByteArray, maxSide: Int = 256): BitmapFactory.Options {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }

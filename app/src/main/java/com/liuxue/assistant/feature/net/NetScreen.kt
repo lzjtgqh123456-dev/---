@@ -880,21 +880,6 @@ private fun QuickSearchTab(state: NetUiState, vm: NetViewModel) {
                     }
                 }
             }
-            if (state.results.isEmpty() && state.aiAnswer.isBlank() && !state.aiBusy) {
-                item {
-                    Column {
-                        Text("输入问题后点上方按钮。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("· 开「联网搜索」：先检索网页，再把资料交给 AI 总结并标注来源",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("· 开「深度思考」：更长的系统提示 + 低温度 + 更大输出预算",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
             if (state.aiHistory.isNotEmpty()) {
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {

@@ -7,11 +7,16 @@ import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,6 +32,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -67,14 +74,29 @@ fun ZoomableImageDialog(bitmap: ImageBitmap, title: String = "", onDismiss: () -
             )
             IconButton(
                 onClick = onDismiss,
-                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()          // 别被状态栏/刘海压住
+                    .padding(8.dp)
+                    .background(Color.Black.copy(alpha = 0.45f), CircleShape)
             ) {
                 Icon(Icons.Filled.Close, contentDescription = "关闭", tint = Color.White)
             }
+            // 提示条：以前是直接在图底部画 75% 白字 —— 亮图上看不清，低端机还被手势条压住。
+            // 现在加半透明药丸底 + 避开系统栏，任何底图上都能看清。
             Text(
-                if (title.isBlank()) "双指缩放 · 拖动查看" else "双指缩放 · 拖动查看 · " + title,
-                color = Color.White.copy(alpha = 0.75f),
-                modifier = Modifier.align(Alignment.BottomCenter).padding(18.dp)
+                text = if (title.isBlank()) "双指缩放 · 拖动查看" else "双指缩放 · 拖动查看 · " + title,
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()      // 避开底部手势条
+                    .padding(start = 24.dp, end = 24.dp, bottom = 20.dp)
+                    .background(Color.Black.copy(alpha = 0.62f), RoundedCornerShape(50))
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
     }

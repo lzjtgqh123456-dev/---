@@ -50,10 +50,61 @@ class VaultStore(private val context: Context) {
         val f = File(root, relativePath)
         if (!f.exists()) return null
         val out = File(cacheDir, "${relativePath.hashCode().toUInt()}.$ext")
-        return runCatching {
+        // 命中缓存（大小对得上）就直接复用：同一份文件第二次打开 / 播放就不用再解密一遍
+        if (out.isFile && out.length() > 0 && out.length() == VaultCrypto.plaintextSize(f)) {
+            return out
+        }
+        val ok = runCatching {
             out.outputStream().use { o -> f.inputStream().use { i -> VaultCrypto.decryptFrom(i, o) } }
-            out
-        }.getOrNull()
+        }.isSuccess
+        if (!ok) {
+            out.delete()
+            return null
+        }
+        // 老格式（v1/v2）走的是 Keystore 慢路径 —— 读完顺手升级成 v3，
+        // 下次打开就不用再等那一两分钟了。先写临时文件再改名，失败不动原文件。
+        if (VaultCrypto.needsUpgrade(f)) {
+            runCatching {
+                val tmp = File(f.parentFile, f.name + ".up")
+                tmp.outputStream().use { o -> out.inputStream().use { i -> VaultCrypto.encryptTo(i, o) } }
+                if (!tmp.renameTo(f)) tmp.delete()
+            }
+        }
+        return out
+    }
+
+    /**
+     * 还没升级成 v3 的文件（不含 .dek）。用来在启动时提示用户"一键升级"，
+     * 免得第一次打开大文件还要等一两分钟。
+     */
+    fun legacyFiles(): List<File> = runCatching {
+        (root.listFiles() ?: emptyArray())
+            .filter { it.isFile && !it.name.startsWith(".") && VaultCrypto.needsUpgrade(it) }
+    }.getOrDefault(emptyList())
+
+    /**
+     * 把一个旧格式（v1/v2）文件原地升级成 v3。
+     * 先解密到 cache，再用 v3 写临时文件，最后改名覆盖 —— 任何一步失败都不动原文件。
+     */
+    fun upgradeLegacyFile(file: File): Boolean {
+        if (!file.isFile || !VaultCrypto.needsUpgrade(file)) return true
+        val plain = File(cacheDir, "up_" + file.name + ".plain")
+        val enc = File(file.parentFile, file.name + ".up")
+        return try {
+            plain.outputStream().use { o ->
+                file.inputStream().use { i -> VaultCrypto.decryptFrom(i, o) }
+            }
+            enc.outputStream().use { o ->
+                plain.inputStream().use { i -> VaultCrypto.encryptTo(i, o) }
+            }
+            if (!enc.renameTo(file)) error("改名失败")
+            true
+        } catch (e: Exception) {
+            enc.delete()
+            false
+        } finally {
+            plain.delete()
+        }
     }
 
     /** 删除加密文件 */

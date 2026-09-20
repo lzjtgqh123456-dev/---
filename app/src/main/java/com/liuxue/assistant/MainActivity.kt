@@ -1,6 +1,7 @@
 package com.liuxue.assistant
 
 import android.Manifest
+import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -32,9 +33,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
+import com.liuxue.assistant.data.security.VaultStore
 import com.liuxue.assistant.feature.about.WelcomeDialog
+import com.liuxue.assistant.feature.files.VaultUpgradeDialog
 import com.liuxue.assistant.feature.about.ensureWelcomeMemo
 import com.liuxue.assistant.feature.about.hasSeenWelcome
 import com.liuxue.assistant.feature.about.markWelcomeSeen
@@ -127,6 +132,27 @@ private fun AssistantAppShell() {
     var showWelcome by remember { mutableStateOf(!hasSeenWelcome(ctx)) }
     LaunchedEffect(Unit) {
         scope.launch { ensureWelcomeMemo(ctx) }
+    }
+
+    // ---------- 旧加密文件升级提示 ----------
+    // 老版本用 Keystore 直接加密文件，打开大文件要等一两分钟；新版本换成信封加密后只要 1 秒。
+    // 这里在启动时扫一遍还剩哪些"大块旧格式文件"，问用户要不要现在一次性升级。
+    val vaultStore = remember { VaultStore(ctx) }
+    var legacyBigFiles by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
+    var showUpgrade by remember { mutableStateOf(false) }
+    var upgrading by remember { mutableStateOf(false) }
+    var upgradedCount by remember { mutableStateOf(0) }
+    var upgradeProgress by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        val files = withContext(Dispatchers.IO) {
+            runCatching { vaultStore.legacyFiles().filter { it.length() > 4L * 1024 * 1024 } }
+                .getOrDefault(emptyList())
+        }
+        if (files.isNotEmpty() && !isUpgradeSnoozed(ctx)) {
+            legacyBigFiles = files
+            showUpgrade = true
+        }
     }
 
     val navController = rememberNavController()
@@ -235,4 +261,47 @@ private fun AssistantAppShell() {
             showWelcome = false
         })
     }
+
+    if (showUpgrade && !showWelcome) {
+        VaultUpgradeDialog(
+            legacyCount = legacyBigFiles.size,
+            upgrading = upgrading,
+            doneCount = upgradedCount,
+            progressText = upgradeProgress,
+            onStart = {
+                upgrading = true
+                upgradedCount = 0
+                scope.launch {
+                    var ok = 0
+                    legacyBigFiles.forEachIndexed { idx, f ->
+                        upgradeProgress = "正在升级（" + (idx + 1) + "/" + legacyBigFiles.size + "）：" + f.name
+                        val done = withContext(Dispatchers.IO) { vaultStore.upgradeLegacyFile(f) }
+                        if (done) ok++
+                    }
+                    upgradedCount = ok
+                    upgradeProgress = ""
+                    upgrading = false
+                }
+            },
+            onLater = {
+                showUpgrade = false
+                snoozeUpgrade(ctx)
+            },
+            onClose = { showUpgrade = false }
+        )
+    }
+}
+
+private const val UPGRADE_PREF = "vault_upgrade"
+private const val UPGRADE_SNOOZE_MS = 7L * 24 * 60 * 60 * 1000
+
+/** 用户点了「以后再说」就 7 天不再自动弹（避免每次启动都打扰） */
+private fun isUpgradeSnoozed(ctx: Context): Boolean =
+    ctx.getSharedPreferences(UPGRADE_PREF, Context.MODE_PRIVATE)
+        .getLong("snooze_until", 0L) > System.currentTimeMillis()
+
+private fun snoozeUpgrade(ctx: Context) {
+    ctx.getSharedPreferences(UPGRADE_PREF, Context.MODE_PRIVATE).edit()
+        .putLong("snooze_until", System.currentTimeMillis() + UPGRADE_SNOOZE_MS)
+        .apply()
 }

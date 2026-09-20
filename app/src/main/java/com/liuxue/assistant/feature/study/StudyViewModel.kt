@@ -19,6 +19,7 @@ import com.liuxue.assistant.domain.ClassFilter
 import com.liuxue.assistant.notify.ClassReminderSettings
 import com.liuxue.assistant.notify.ReminderScheduler
 import com.liuxue.assistant.domain.WeekCalc
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -557,17 +558,47 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- 课件 ----------
 
-    fun addMaterial(courseId: Long, uri: android.net.Uri, name: String, mime: String, kind: String) =
-        viewModelScope.launch {
-            runCatching { repo.addMaterial(courseId, uri, name, mime, kind) }
-                .onSuccess { _ui.value = _ui.value.copy(message = "已导入：" + name) }
-                .onFailure { _ui.value = _ui.value.copy(message = "导入失败：" + (it.message ?: "")) }
-        }
+    /**
+     * 某门课的资料流。
+     *
+     * 资料弹窗以前用的是 `materials`（跟着 `openMaterials()` 这个"当前查看课程"的全局状态走），
+     * 从课程详情打开弹窗时没人去设置它 —— 于是列表恒为空、导入完也看不到自己刚加的东西。
+     * 弹窗现在直接订阅自己那门课的流，跟调用入口无关。
+     */
+    fun materialsFlow(courseId: Long): Flow<List<CourseMaterial>> = repo.observeMaterialsOf(courseId)
 
-    fun deleteMaterial(m: CourseMaterial) = viewModelScope.launch {
-        repo.deleteMaterial(m)
-        _ui.value = _ui.value.copy(message = "已删除")
+    /**
+     * 导入课件/笔记。
+     * [onResult] 用来在弹窗里就地给反馈 —— 主界面的 Snackbar 会被 AlertDialog 盖住，用户根本看不见。
+     */
+    fun addMaterial(
+        courseId: Long,
+        uri: android.net.Uri,
+        name: String,
+        mime: String,
+        kind: String,
+        onResult: (Boolean, String) -> Unit = { _, _ -> }
+    ) = viewModelScope.launch {
+        runCatching { repo.addMaterial(courseId, uri, name, mime, kind) }
+            .onSuccess {
+                val msg = "已导入：" + name
+                _ui.value = _ui.value.copy(message = msg)
+                onResult(true, msg)
+            }
+            .onFailure {
+                val msg = "导入失败：" + (it.message ?: "未知错误")
+                _ui.value = _ui.value.copy(message = msg)
+                onResult(false, msg)
+            }
     }
+
+    fun deleteMaterial(m: CourseMaterial, onResult: (String) -> Unit = {}) =
+        viewModelScope.launch {
+            runCatching { repo.deleteMaterial(m) }
+                .onFailure { _ui.value = _ui.value.copy(message = "删除失败：" + (it.message ?: "")) }
+            _ui.value = _ui.value.copy(message = "已删除")
+            onResult("已删除资料：" + m.name)
+        }
 
     fun clearMessage() { _ui.value = _ui.value.copy(message = null) }
 

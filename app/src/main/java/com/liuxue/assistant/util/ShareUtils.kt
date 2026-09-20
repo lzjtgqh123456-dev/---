@@ -3,11 +3,15 @@ package com.liuxue.assistant.util
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import java.io.File
 
 object ShareUtils {
+
+    private val main = Handler(Looper.getMainLooper())
 
     fun shareFile(context: Context, file: File, mime: String, title: String = "分享") {
         val uri = FileProvider.getUriForFile(
@@ -33,33 +37,68 @@ object ShareUtils {
             .appendQueryParameter("mime", normalizeMime(mime, displayName))
             .build()
 
-    /** 用系统应用打开加密文件（流式，大文件也快） */
+    /**
+     * 用系统应用打开加密文件。
+     *
+     * ⚠️ 不要直接把「管道 URI」交给系统 App：pipe **不可 seek**，PDF/Office/视频播放器
+     * 一 seek 就失败（表现就是「卡住很久，然后报错/提示文件损坏」），大文件尤其明显。
+     * 所以这里先把密文解密成 cache 里的普通文件（可 seek），再走 FileProvider 打开。
+     * 解密放在后台线程做，先给个「正在准备文件…」的提示，不卡界面。
+     */
     fun openStream(context: Context, relativePath: String, displayName: String, mime: String): Boolean {
-        val uri = streamUri(context, relativePath, displayName, mime)
-        val view = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, normalizeMime(mime, displayName))
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            clipData = android.content.ClipData.newRawUri(displayName, uri)
+        materializeAsync(context, relativePath, displayName) { file ->
+            if (file == null) {
+                Toast.makeText(context, "解密失败，无法打开这个文件", Toast.LENGTH_LONG).show()
+            } else {
+                openFile(context, file, mime, "打开")
+            }
         }
-        if (runCatching { context.startActivity(view) }.isSuccess) return true
-        val chooser = Intent.createChooser(view, "打开").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (runCatching { context.startActivity(chooser) }.isSuccess) return true
-        Toast.makeText(context, "没有能打开这个文件的应用，可以试试「分享」到其它 App", Toast.LENGTH_LONG).show()
-        return false
+        return true
     }
 
-    /** 分享加密文件（流式，大文件也快） */
-    fun shareStream(context: Context, relativePath: String, displayName: String, mime: String, title: String = "分享") {
-        val uri = streamUri(context, relativePath, displayName, mime)
-        val send = Intent(Intent.ACTION_SEND).apply {
-            type = normalizeMime(mime, displayName)
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            clipData = android.content.ClipData.newRawUri(displayName, uri)
+    /** 分享加密文件（同样先解密到 cache，避免对方 App 读不可 seek 的流） */
+    fun shareStream(
+        context: Context,
+        relativePath: String,
+        displayName: String,
+        mime: String,
+        title: String = "分享"
+    ) {
+        materializeAsync(context, relativePath, displayName) { file ->
+            if (file == null) {
+                Toast.makeText(context, "解密失败，无法分享这个文件", Toast.LENGTH_LONG).show()
+            } else {
+                shareFile(context, file, normalizeMime(mime, displayName), title)
+            }
         }
-        context.startActivity(
-            Intent.createChooser(send, title).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
+    }
+
+    /**
+     * 后台把加密文件解密成 cache/vault_preview 下的普通文件（保留原名后缀，方便系统按类型选 App）。
+     * 完成后回主线程回调；失败给 null。
+     */
+    private fun materializeAsync(
+        context: Context,
+        relativePath: String,
+        displayName: String,
+        onReady: (File?) -> Unit
+    ) {
+        Toast.makeText(context, "正在准备文件…", Toast.LENGTH_SHORT).show()
+        Thread {
+            val f = runCatching {
+                val store = com.liuxue.assistant.data.security.VaultStore(context)
+                // 文件名里的路径分隔符要清掉，避免写到别的目录
+                val safe = displayName.ifBlank { "file" }
+                    .replace(Regex("""[\\/]"""), "_").take(80)
+                val ext = safe.substringAfterLast('.', "bin").take(8)
+                store.materialize(relativePath, ext)?.let { plain ->
+                    val named = File(plain.parentFile, safe)
+                    named.delete()                       // 覆盖上一次的同名缓存
+                    if (plain.renameTo(named)) named else plain
+                }
+            }.getOrNull()
+            main.post { runCatching { onReady(f) } }
+        }.start()
     }
 
     /**

@@ -36,6 +36,55 @@ class StudyRepository(
     suspend fun saveSemester(s: Semester) = withContext(Dispatchers.IO) { dao.upsertSemester(s) }
     suspend fun deleteSemester(s: Semester) = withContext(Dispatchers.IO) { dao.deleteSemester(s) }
 
+    /** 删除一个学期会连带删掉什么（给二次确认弹窗写清楚用） */
+    data class SemesterImpact(val courses: Int, val lessons: Int, val materials: Int)
+
+    suspend fun semesterImpact(semester: Semester): SemesterImpact = withContext(Dispatchers.IO) {
+        val courses = dao.allCourses().filter { it.semesterId == semester.id }
+        var lessons = 0
+        var materials = 0
+        for (c in courses) {
+            lessons += dao.schedulesOf(c.id).size
+            materials += dao.materialsOf(c.id).size
+        }
+        SemesterImpact(courses.size, lessons, materials)
+    }
+
+    /**
+     * 彻底删除一个学期：课程、课时、作业（含附件）、考试、课件笔记（含加密文件）全部清掉。
+     *
+     * 为什么连加密文件一起删：课件/笔记的密文存在 files/vault 下，只删数据库行的话
+     * 那些文件会永远留在磁盘上没人引用（既占空间，也不符合"删了就是删了"的预期）。
+     *
+     * 如果删的正好是当前学期，会自动把剩下的最新一个学期设为当前，避免课表突然"没有学期"。
+     */
+    suspend fun deleteSemesterDeep(semester: Semester) = withContext(Dispatchers.IO) {
+        val courses = dao.allCourses().filter { it.semesterId == semester.id }
+        for (c in courses) {
+            dao.materialsOf(c.id).forEach { m ->
+                if (m.path.isNotBlank()) store.delete(m.path)
+            }
+            dao.homeworkOf(c.id).forEach { h ->
+                dao.homeworkAttachments(h.id).forEach { a ->
+                    if (a.path.isNotBlank()) store.delete(a.path)
+                }
+            }
+        }
+        dao.deleteSchedulesOfSemester(semester.id)
+        dao.deleteExamsOfSemester(semester.id)
+        dao.deleteHomeworkAttachmentsOfSemester(semester.id)
+        dao.deleteHomeworkOfSemester(semester.id)
+        dao.deleteMaterialsOfSemester(semester.id)
+        dao.deleteCoursesOfSemester(semester.id)
+        dao.deleteSemester(semester)
+
+        if (semester.isActive) {
+            dao.allSemesters().firstOrNull()?.let { left ->
+                if (!left.isActive) dao.upsertSemester(left.copy(isActive = true))
+            }
+        }
+    }
+
     /** 当前周次（无学期时返回 null） */
     suspend fun currentWeek(): Int? = withContext(Dispatchers.IO) {
         val s = dao.activeSemester() ?: return@withContext null

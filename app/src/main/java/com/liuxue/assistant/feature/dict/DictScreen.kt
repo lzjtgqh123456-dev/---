@@ -236,7 +236,8 @@ fun DictScreen(
 
             // 输入联想
             if (state.suggestions.isNotEmpty() && state.results.isEmpty()) {
-                LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp)) {
+                // bottom 留白：避开底部导航栏，否则最后几条会被挡住在栏下面
+                LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 104.dp)) {
                     items(state.suggestions, key = { it.entryId }) { s ->
                         SuggestionRow(s, state.pack.glossColumn) { vm.search(s.lemma) }
                     }
@@ -267,7 +268,7 @@ fun DictScreen(
                 }
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 104.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(state.results, key = { it.entry.id }) { card ->

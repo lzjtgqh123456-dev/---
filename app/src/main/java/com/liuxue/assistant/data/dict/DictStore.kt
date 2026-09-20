@@ -49,10 +49,11 @@ class DictStore(
                    '' AS matchedTag, 1 AS isLemma
             FROM dict_entry e
             WHERE e.lemmaPlain LIKE ? || '%'
-            ORDER BY LENGTH(e.lemma), e.id
+            -- 打完整词时，它自己排最前
+            ORDER BY CASE WHEN e.lemmaPlain = ? THEN 0 ELSE 1 END, LENGTH(e.lemma), e.id
             LIMIT $limit
         """.trimIndent()
-        return db().rawQuery(sql, arrayOf(prefix)).use { c -> c.toHits() }
+        return db().rawQuery(sql, arrayOf(prefix, prefix)).use { c -> c.toHits() }
     }
 
     /**
@@ -62,15 +63,63 @@ class DictStore(
     fun searchChinese(q: String, glossColumn: String = "glossZh", limit: Int = 40): List<LookupHit> {
         // 按当前词典入口的释义语言反查：俄汉=中文、俄英=英文、英汉=中文
         val col = if (glossColumn == "glossEn") "glossEn" else "glossZh"
+        // 先按"词短优先"捞一批候选，再在 Kotlin 里按义项精确排序。
+        // 为什么排序不放在 SQL：释义是多义项字符串（例："书，书籍；账簿"），
+        // SQL 的 e.glossZh = '书' 几乎永远不成立，根本无法表达"完全匹配"。
+        val fetch = (limit * 5).coerceAtLeast(60).coerceAtMost(300)
         val sql = """
             SELECT e.id AS entryId, e.lemma, e.pos, e.ipa, e.glossZh, e.glossEn,
                    '' AS matchedTag, 1 AS isLemma
             FROM dict_entry e
             WHERE e.$col LIKE '%' || ? || '%'
-            ORDER BY LENGTH(e.lemma)
-            LIMIT $limit
+            ORDER BY LENGTH(e.lemma), e.id
+            LIMIT $fetch
         """.trimIndent()
-        return db().rawQuery(sql, arrayOf(q)).use { c -> c.toHits() }
+        val hits = db().rawQuery(sql, arrayOf(q)).use { c -> c.toHits() }
+        val target = q.trim()
+        return hits
+            .sortedWith(
+                compareBy<LookupHit> { senseRank(it, col, target) }
+                    .thenBy { it.lemma.length }
+                    .thenBy { it.entryId }
+            )
+            .take(limit)
+    }
+
+    /**
+     * 输入与这条释义的匹配程度：越小越"完全匹配"。
+     * 0 = 某个义项与输入完全相同（如输入"书"，释义"书，书籍"里的"书"）
+     * 1 = 释义以输入开头 / 某个义项以输入开头（主释义就是它）
+     * 2 = 只是包含（一般匹配）
+     * 3 = 释义为空（兜底）
+     */
+    private fun senseRank(h: LookupHit, col: String, q: String): Int {
+        val raw = (if (col == "glossEn") h.glossEn else h.glossZh)?.trim()
+        if (raw.isNullOrEmpty()) return 3
+        if (raw == q) return 0
+        // 先去掉 <正, 书, 尤英> / [计] / [经] 这类语体·学科标注 —— 它们是标注不是词义，
+        // 不去掉的话「viz = adv. <正, 书, 尤英>即, 就是」会被误判成"完全匹配"（实测踩过）。
+        val gloss = stripLabelParts(raw)
+        val senses = gloss.split('，', ',', '；', ';', '、', '/', '|', '·')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+        if (senses.any { it == q }) return 0
+        if (gloss.startsWith(q) || senses.any { it.startsWith(q) }) return 1
+        return 2
+    }
+
+    /** 去掉 <…> 与 […] 包裹的内容（含嵌套），只用剩下的词义文本参与匹配 */
+    private fun stripLabelParts(s: String): String {
+        val sb = StringBuilder()
+        var depth = 0
+        for (ch in s) {
+            when (ch) {
+                '<', '[' -> depth++
+                '>', ']' -> if (depth > 0) depth--
+                else -> if (depth == 0) sb.append(ch)
+            }
+        }
+        return sb.toString().trim()
     }
 
     /** 模糊包含 */

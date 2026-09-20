@@ -113,9 +113,12 @@ class DictViewModel(app: Application) : AndroidViewModel(app) {
     /** 切换词典入口（俄汉 / 俄英 / 英汉），并刷新词条统计与当前查询 */
     fun setPack(p: DictAssetDb.Pack) = viewModelScope.launch {
         if (p.id == _state.value.pack.id) return@launch
+        // 注意：这里**不要**先把 dictReady 置 false —— 否则切换词典包的一瞬间，
+        // 「未安装 + 下载词典」卡片会闪一下（用户反馈"一闪而过下载的提示"）。
+        // 真实状态由下面的 loadStats() 刷新。
         _state.value = _state.value.copy(
             pack = p, results = emptyList(), suggestions = emptyList(),
-            message = null, dictReady = false, dictStats = 0 to 0
+            message = null, dictStats = 0 to 0
         )
         // 内置包（英汉）若被删过，这里 open() 会自动从 APK 重新释放；无内置资源的包会失败，由 loadStats 提示未安装
         val opened = runCatching { repo.setPack(p) }.isSuccess
@@ -127,11 +130,8 @@ class DictViewModel(app: Application) : AndroidViewModel(app) {
         // 首次访问会从 assets 释放词典，放到 IO 线程
         val p = _state.value.pack
         if (!DictAssetDb.isReady(getApplication(), p)) {
-            _state.value = _state.value.copy(
-                dictReady = false,
-                dictStats = 0 to 0,
-                message = "「" + p.label + "」未安装，点右上角「词典管理」"
-            )
+            // 不弹提示：页面上那张「未安装 + 下载 / 导入」卡片已经说明了，弹 snackbar 只会一闪而过
+            _state.value = _state.value.copy(dictReady = false, dictStats = 0 to 0, message = null)
             return@launch
         }
         val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -147,7 +147,7 @@ class DictViewModel(app: Application) : AndroidViewModel(app) {
             dictStats = ready ?: (0 to 0),
             message = when {
                 ready != null -> null
-                !installed -> "「" + p.label + "」未安装，点右上角「词典管理」"
+                !installed -> null          // 同上：未安装只由卡片提示
                 else -> result.exceptionOrNull()?.let { "词典初始化失败：" + (it.message ?: it.javaClass.simpleName) }
             }
         )
@@ -227,7 +227,10 @@ class DictViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
         }
-        refreshPacks(); loadStats()
+        refreshPacks()
+        // 成功就立刻切到「已就绪」：否则刷新完成前页面还会再显示一次「未安装 / 下载词典」卡片
+        if (r.isSuccess) _state.value = _state.value.copy(dictReady = true)
+        loadStats()
         _state.value = _state.value.copy(
             downloadingKey = null, downloadProgress = 0f,
             managerMessage = r.fold(

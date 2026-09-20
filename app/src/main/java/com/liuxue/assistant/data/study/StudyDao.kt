@@ -40,6 +40,31 @@ interface StudyDao {
     @Delete
     suspend fun deleteSemester(s: Semester)
 
+    @Query("SELECT * FROM semester ORDER BY startDate DESC")
+    suspend fun allSemesters(): List<Semester>
+
+    // ---------- 按学期批量删除（「删除学期」用：一次清干净，别留孤儿行） ----------
+
+    @Query("DELETE FROM course_schedule WHERE courseId IN (SELECT id FROM course WHERE semesterId = :sid)")
+    suspend fun deleteSchedulesOfSemester(sid: Long)
+
+    @Query("DELETE FROM exam WHERE courseId IN (SELECT id FROM course WHERE semesterId = :sid)")
+    suspend fun deleteExamsOfSemester(sid: Long)
+
+    @Query(
+        "DELETE FROM homework_attachment WHERE homeworkId IN (SELECT id FROM homework WHERE courseId IN (SELECT id FROM course WHERE semesterId = :sid))"
+    )
+    suspend fun deleteHomeworkAttachmentsOfSemester(sid: Long)
+
+    @Query("DELETE FROM homework WHERE courseId IN (SELECT id FROM course WHERE semesterId = :sid)")
+    suspend fun deleteHomeworkOfSemester(sid: Long)
+
+    @Query("DELETE FROM course_material WHERE courseId IN (SELECT id FROM course WHERE semesterId = :sid)")
+    suspend fun deleteMaterialsOfSemester(sid: Long)
+
+    @Query("DELETE FROM course WHERE semesterId = :sid")
+    suspend fun deleteCoursesOfSemester(sid: Long)
+
     // ---------- 课程 ----------
 
     @Query("SELECT * FROM course WHERE archived = 0 ORDER BY name")

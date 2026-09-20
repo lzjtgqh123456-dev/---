@@ -135,7 +135,9 @@ fun NetScreen(vm: NetViewModel = viewModel<NetViewModel>()) {
 private fun RateTab(state: NetUiState, vm: NetViewModel) {
     val currencies = vm.availableCurrencies()
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
+        // bottom 留白：避开底部导航栏
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 104.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         OutlinedTextField(
@@ -231,7 +233,9 @@ private fun SettingsTab(state: NetUiState, vm: NetViewModel) {
     var saveResult by remember { mutableStateOf<String?>(null) }
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
+        // bottom 留白：避开底部导航栏
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 104.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // ---------- 搜索引擎（ENABLE_WEB_SEARCH=false 时整块隐藏）----------
@@ -747,7 +751,8 @@ private fun QuickSearchTab(state: NetUiState, vm: NetViewModel) {
         }
 
         LazyColumn(
-            contentPadding = PaddingValues(12.dp),
+            // bottom 留白：避开底部导航栏
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 104.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (state.presets.isNotEmpty()) {

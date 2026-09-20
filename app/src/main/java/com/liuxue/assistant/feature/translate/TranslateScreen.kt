@@ -398,10 +398,17 @@ private fun OcrImageCard(
 /** 页内教程卡片总开关（内容已统一搬到「感谢与教程」文档） */
 private const val SHOW_TUTORIAL = false
 
+/**
+ * 识别语言选项 —— 写的必须就是"这个模型/模式实际认识什么"，别用含糊的"中英"。
+ * - CH：中文识别模型（PP-OCRv4），词表里同时有汉字和拉丁字母 ⇒ 中文 + 英文
+ * - RU：西里尔字母模型 ⇒ 俄文（以及其它西里尔文字）
+ * - AUTO：前 1~2 行同时跑上面两个模型，整体得分高的那个胜出；之后逐行用胜出模型，
+ *         某一行得分太低再兜底试另一个 ⇒ 中俄混排也能处理
+ */
 private val OCR_SCRIPTS = listOf(
-    "自动（中英/俄文）" to OcrScript.AUTO,
-    "中英" to OcrScript.CH,
-    "俄文" to OcrScript.RU
+    "自动判断（中／英／俄）" to OcrScript.AUTO,
+    "中文 + 英文" to OcrScript.CH,
+    "俄文（西里尔）" to OcrScript.RU
 )
 
 /** 相册图片预览（下采样解码，避免大图 OOM） */

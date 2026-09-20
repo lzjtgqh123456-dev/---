@@ -1,6 +1,7 @@
 package com.liuxue.assistant.feature.study
 
 import android.widget.Toast
+import kotlinx.coroutines.launch
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -48,6 +49,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -1567,7 +1569,17 @@ private fun SemesterDialog(vm: StudyViewModel, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var totalWeeks by remember { mutableStateOf(18) }
     var startDate by remember { mutableStateOf(WeekCalc.mondayOf(System.currentTimeMillis())) }
+    // 用户实际点选的那一天。startDate 会被自动对齐到周一（课表按周算），
+    // 单独留一份原始选择，免得用户以为"我选的开学日期被改掉了"。
+    var pickedDate by remember { mutableStateOf<Long?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
+
+    // 删除学期（删旧的、重新导入课程用）
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val semesters by vm.semesters.collectAsState()
+    var pendingDelete by remember { mutableStateOf<com.liuxue.assistant.data.study.Semester?>(null) }
+    var deleteText by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1594,14 +1606,68 @@ private fun SemesterDialog(vm: StudyViewModel, onDismiss: () -> Unit) {
                     Icon(Icons.Filled.DateRange, contentDescription = null,
                         modifier = Modifier.size(18.dp))
                     Spacer(Modifier.size(8.dp))
-                    Text(DateUtils.formatDay(startDate), style = MaterialTheme.typography.titleSmall)
+                    Text(DateUtils.formatDay(pickedDate ?: startDate), style = MaterialTheme.typography.titleSmall)
                 }
+                val picked = pickedDate
                 Text(
-                    "选择开学那天即可，自动对齐到" + CourseSchedule.weekdayLabel(1) +
-                        "（" + DateUtils.formatDay(startDate) + " 为第 1 周起点）",
+                    if (picked != null && picked != startDate)
+                        "你选的 " + DateUtils.formatDay(picked) +
+                            "（" + CourseSchedule.weekdayLabel(WeekCalc.weekdayOf(picked)) + "）" +
+                            " → 第 1 周起点 " + DateUtils.formatDay(startDate) + "（周一）"
+                    else
+                        "第 1 周起点：" + DateUtils.formatDay(startDate) + "（周一）",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Text(
+                    "课表按周计算，所以会把开学那一周对齐到周一；你选的日期本身不会被改动。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // ---------- 已有学期：可以删除（进入下学期后删旧的、重新导入课程） ----------
+                if (semesters.isNotEmpty()) {
+                    HorizontalDivider(Modifier.padding(top = 6.dp))
+                    Text("已有学期", style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        "进入下学期后，可以在这里把上一个学期删掉再重新导入课程。删除不可恢复。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    semesters.forEach { sem ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    sem.name + if (sem.isActive) "（当前）" else "",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    DateUtils.formatDay(sem.startDate) + " 起 · 共 " + sem.totalWeeks + " 周",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            TextButton(onClick = {
+                                pendingDelete = sem
+                                deleteText = null     // 先算影响面，算完再显示
+                                scope.launch {
+                                    val imp = vm.semesterImpact(sem)
+                                    deleteText = "确认删除学期「" + sem.name + "」？\n\n" +
+                                        (if (imp != null && (imp.courses > 0 || imp.lessons > 0 || imp.materials > 0))
+                                            "会同时删除 " + imp.courses + " 门课程、" + imp.lessons +
+                                                " 节课、" + imp.materials + " 份资料（含已加密的文件）。"
+                                        else "这个学期还没有课程数据。") +
+                                        "\n\n删除后无法恢复。"
+                                }
+                            }) {
+                                Text("删除", color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -1613,17 +1679,32 @@ private fun SemesterDialog(vm: StudyViewModel, onDismiss: () -> Unit) {
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
 
+    // 删除学期：二次确认（列出会连带删掉什么）
+    pendingDelete?.let { target ->
+        ConfirmDeleteDialog(
+            text = deleteText ?: ("确认删除学期「" + target.name + "」？删除后无法恢复。"),
+            onConfirm = {
+                pendingDelete = null
+                vm.deleteSemester(target) { msg ->
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDismiss = { pendingDelete = null }
+        )
+    }
+
     // 日历选择开学日期
     if (showDatePicker) {
         val pickerState = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = startDate
+            initialSelectedDateMillis = pickedDate ?: startDate
         )
         androidx.compose.material3.DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let { picked ->
-                        startDate = WeekCalc.mondayOf(picked)
+                    pickerState.selectedDateMillis?.let { sel ->
+                        pickedDate = sel                      // 记住原始选择
+                        startDate = WeekCalc.mondayOf(sel)    // 第 1 周起点对齐到周一
                     }
                     showDatePicker = false
                 }) { Text("确定") }

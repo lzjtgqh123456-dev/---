@@ -318,6 +318,29 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
         refreshLessons()
     }
 
+    /** 删除学期前先算影响面（几门课/几节课/几份资料），给二次确认弹窗写清楚 */
+    suspend fun semesterImpact(s: Semester): com.liuxue.assistant.data.study.StudyRepository.SemesterImpact? =
+        runCatching { repo.semesterImpact(s) }.getOrNull()
+
+    /**
+     * 删除学期（连同课程/课时/作业/考试/资料及加密文件）。
+     * [onResult] 用于在弹窗里就地提示 —— 主界面的 Snackbar 会被弹窗盖住。
+     */
+    fun deleteSemester(s: Semester, onResult: (String) -> Unit = {}) = viewModelScope.launch {
+        runCatching { repo.deleteSemesterDeep(s) }
+            .onSuccess {
+                val msg = "已删除学期「" + s.name + "」"
+                _ui.value = _ui.value.copy(message = msg)
+                onResult(msg)
+                refreshLessons()
+            }
+            .onFailure {
+                val msg = "删除失败：" + (it.message ?: "未知错误")
+                _ui.value = _ui.value.copy(message = msg)
+                onResult(msg)
+            }
+    }
+
     fun deleteCourse(c: Course) = viewModelScope.launch {
         repo.deleteCourse(c)
         _ui.value = _ui.value.copy(message = "已删除「" + c.name + "」")

@@ -28,7 +28,8 @@ private fun Wheel(range: IntRange, value: Int, onChange: (Int) -> Unit) {
             NumberPicker(ctx).apply {
                 minValue = range.first
                 maxValue = range.last
-                wrapSelectorWheel = true
+                // 不循环：滚到最后一项就停住（用户反馈循环后很难停在想要的年份）
+                wrapSelectorWheel = false
                 descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
             }
         },
@@ -41,6 +42,10 @@ private fun Wheel(range: IntRange, value: Int, onChange: (Int) -> Unit) {
         modifier = Modifier.width(82.dp)
     )
 }
+
+/** 可选年份范围：1900 ~ 2100（含） */
+private const val YEAR_MIN = 1900
+private const val YEAR_MAX = 2100
 
 private fun daysInMonth(year: Int, month: Int): Int =
     Calendar.getInstance().apply {
@@ -71,9 +76,9 @@ fun WheelDateDialog(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Wheel(2000..2100, year) { year = it }
+                Wheel(YEAR_MIN..YEAR_MAX, year) { year = it }
                 Wheel(1..12, month) { month = it }
-                Wheel(1..31, day) { day = it }
+                Wheel(1..daysInMonth(year, month), day) { day = it }
             }
         },
         confirmButton = {

@@ -13,8 +13,8 @@ android {
         applicationId = "com.liuxue.assistant"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.9.1"
+        versionCode = 11
+        versionName = "0.9.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // 只为 arm64 打包原生推理库（其它 ABI 无此库，加载时优雅降级）
         ndk { abiFilters.add("arm64-v8a") }

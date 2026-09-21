@@ -123,7 +123,7 @@ internal fun ClassReminderDialog(
                     )
                 }
                 Text(
-                    "每 15 分钟检查一次，同一节课只提醒一次；不需要精确闹钟权限。",
+                    "到「上课时间 − 提前分钟数」时提醒，同一节课只提醒一次；后台漏掉会自动补发，无需精确闹钟权限。",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

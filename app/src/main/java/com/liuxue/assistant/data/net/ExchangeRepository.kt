@@ -20,7 +20,8 @@ data class RateTable(
  * 用 open.er-api.com 的免费接口（无需 Key、无次数限制、支持 160+ 币种）。
  * 失败时自动回退到 frankfurter.app（欧洲央行数据，币种少一些但更稳）。
  *
- * 缓存策略：内存 + 15 分钟有效期。汇率不需要秒级新鲜，缓存能省流量也避免频繁请求。
+ * 缓存策略：内存 + 1 分钟有效期；下拉/点刷新时强制绕过缓存。免费接口本身按天更新，
+ * 页面上会显示「更新于 …」，避免用户误以为是一直不动的旧数据。
  */
 class ExchangeRepository {
 
@@ -43,11 +44,13 @@ class ExchangeRepository {
     fun availableCurrencies(): List<Pair<String, String>> =
         symbols.entries.map { it.key to it.value }.sortedBy { it.first }
 
-    /** 取以 base 为基准的汇率表（15 分钟内走缓存） */
-    suspend fun rates(base: String): RateTable = withContext(Dispatchers.IO) {
+    /** 取以 base 为基准的汇率表（1 分钟内走缓存；force=true 强制刷新） */
+    suspend fun rates(base: String, force: Boolean = false): RateTable = withContext(Dispatchers.IO) {
         val b = base.uppercase()
-        cache?.takeIf { it.base == b && System.currentTimeMillis() - it.updatedAt < 15 * 60_000 }
-            ?.let { return@withContext it }
+        if (!force) {
+            cache?.takeIf { it.base == b && System.currentTimeMillis() - it.updatedAt < CACHE_TTL_MS }
+                ?.let { return@withContext it }
+        }
 
         var lastError: String? = null
         // 源 1：open.er-api.com
@@ -96,6 +99,11 @@ class ExchangeRepository {
             if (!resp.isSuccessful) throw IllegalStateException("HTTP " + resp.code)
             return body
         }
+    }
+
+    companion object {
+        /** 汇率内存缓存有效期：1 分钟（点「刷新」可强制绕过） */
+        private const val CACHE_TTL_MS = 60_000L
     }
 
     /** 换算：amount 个 from -> to */

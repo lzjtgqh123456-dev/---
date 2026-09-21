@@ -205,9 +205,19 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
                     currentWeek = active?.let { WeekCalc.weekOf(it).coerceAtLeast(1) } ?: 1
                 )
                 Unit
-            }.collect { }
+            }.collect {
+                // 课程 / 课时 / 学期一变就重算课表。
+                // 否则首次打开时 refreshLessons() 跑在数据流第一次发射之前，
+                // 课表会停在空的「第 1 周」，必须手动刷一下才出来。
+                refreshLessons()
+            }
         }
         refreshLessons()
+    }
+
+    /** 课表 / 学期变化后重排上课提醒（精确一次性任务的排期依赖课表数据） */
+    private fun rescheduleClassReminders() {
+        runCatching { ReminderScheduler.scheduleClassReminders(getApplication()) }
     }
 
     fun setTab(t: StudyTab) {
@@ -254,16 +264,27 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
         refreshLessons()
     }
 
-    fun refreshLessons() = viewModelScope.launch {
-        val s = _ui.value
-        val lessons = repo.lessonsOn(s.week, s.viewingWeekday)
-        val weekLessons = repo.lessonsOfWeek(s.week)
-        val today = repo.todayLessons()
-        _ui.value = _ui.value.copy(
-            lessons = lessons,
-            weekLessons = weekLessons,
-            todayLessons = today
-        )
+    /**
+     * 课表刷新代号：课程/课时/学期变化会触发多次刷新，多个协程并发时，
+     * 先触发的那个可能晚一步才写回结果，用旧数据盖掉新数据（表现为「首次打开当天 0 节、手动刷一下又有了」）。
+     * 只允许最后一次触发的刷新写入。
+     */
+    private var lessonsGen = 0
+
+    fun refreshLessons() {
+        val gen = ++lessonsGen
+        viewModelScope.launch {
+            val s = _ui.value
+            val lessons = repo.lessonsOn(s.week, s.viewingWeekday)
+            val weekLessons = repo.lessonsOfWeek(s.week)
+            val today = repo.todayLessons()
+            if (gen != lessonsGen) return@launch
+            _ui.value = _ui.value.copy(
+                lessons = lessons,
+                weekLessons = weekLessons,
+                todayLessons = today
+            )
+        }
     }
 
     // ---------- 上课提醒 ----------
@@ -305,6 +326,7 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
             )
             _ui.value = _ui.value.copy(message = "学期已保存")
             refreshLessons()
+            rescheduleClassReminders()
         }
 
     // ---------- 课程 ----------
@@ -316,6 +338,7 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
         schedules.forEach { repo.saveSchedule(it.copy(courseId = id, id = 0L)) }
         _ui.value = _ui.value.copy(message = "课程已保存")
         refreshLessons()
+        rescheduleClassReminders()
     }
 
     /** 删除学期前先算影响面（几门课/几节课/几份资料），给二次确认弹窗写清楚 */
@@ -333,6 +356,7 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
                 _ui.value = _ui.value.copy(message = msg)
                 onResult(msg)
                 refreshLessons()
+                rescheduleClassReminders()
             }
             .onFailure {
                 val msg = "删除失败：" + (it.message ?: "未知错误")
@@ -345,12 +369,14 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
         repo.deleteCourse(c)
         _ui.value = _ui.value.copy(message = "已删除「" + c.name + "」")
         refreshLessons()
+        rescheduleClassReminders()
     }
 
     fun deleteScheduleItem(s: CourseSchedule) = viewModelScope.launch {
         repo.deleteSchedule(s)
         _ui.value = _ui.value.copy(message = "已删除该节课")
         refreshLessons()
+        rescheduleClassReminders()
     }
 
     /**
@@ -417,6 +443,7 @@ class StudyViewModel(app: Application) : AndroidViewModel(app) {
                 (if (skipped > 0) "（跳过重复 $skipped 行）" else "")
         )
         refreshLessons()
+        rescheduleClassReminders()
     }
 
     /** 从课程简介「共 24 学时」里取回学时，供导出时还原 (N ч.) 字段 */

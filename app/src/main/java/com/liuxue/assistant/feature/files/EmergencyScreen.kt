@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -145,7 +147,7 @@ fun EmergencyScreen(
                                     editing = info
                                     showEditor = true
                                 }) {
-                                    Icon(Icons.Filled.Add, contentDescription = "编辑")
+                                    Icon(Icons.Filled.Edit, contentDescription = "编辑")
                                 }
                                 IconButton(onClick = { deleting = info }) {
                                     Icon(Icons.Filled.Delete, contentDescription = "删除")
@@ -198,32 +200,29 @@ private fun EmergencyEditor(
     var value by remember { mutableStateOf(initial?.value ?: "") }
     var note by remember { mutableStateOf(initial?.note ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
+    // 上一次点选的是哪个快捷模板：切换分组时把它清掉，免得"分组换了、名称还是上一组的模板"
+    var templatePicked by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initial == null) "添加紧急信息" else "编辑") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    EmergencyViewModel.GROUPS.forEach { (key, title) ->
-                        if (key == EmergencyInfo.GROUP_PERSONAL || key == EmergencyInfo.GROUP_CONTACT) {
-                            FilterChip(
-                                selected = group == key,
-                                onClick = { group = key },
-                                label = { Text(title) }
-                            )
-                        }
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    EmergencyViewModel.GROUPS.forEach { (key, title) ->
-                        if (key == EmergencyInfo.GROUP_INSTITUTION || key == EmergencyInfo.GROUP_OTHER) {
-                            FilterChip(
-                                selected = group == key,
-                                onClick = { group = key },
-                                label = { Text(title) }
-                            )
-                        }
+                // 分组：一行单选（原来是上下两行各两个，看起来像两组独立的选项，容易点混）
+                Text("分组", style = MaterialTheme.typography.labelMedium)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(EmergencyViewModel.GROUPS) { (key, title) ->
+                        FilterChip(
+                            selected = group == key,
+                            onClick = {
+                                if (key != group) {
+                                    if (label.isNotBlank() && label == templatePicked) label = ""
+                                    templatePicked = null
+                                    group = key
+                                }
+                            },
+                            label = { Text(title) }
+                        )
                     }
                 }
 
@@ -232,7 +231,7 @@ private fun EmergencyEditor(
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     templates.take(3).forEach { t ->
                         AssistChip(
-                            onClick = { if (label.isBlank()) label = t },
+                            onClick = { label = t; templatePicked = t },
                             label = { Text(t, style = MaterialTheme.typography.labelSmall) }
                         )
                     }

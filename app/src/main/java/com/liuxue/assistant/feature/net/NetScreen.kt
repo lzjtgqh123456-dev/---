@@ -36,6 +36,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -140,6 +141,9 @@ private fun RateTab(state: NetUiState, vm: NetViewModel) {
             .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 104.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // 进入汇率页自动拉一次（1 分钟缓存内不重复请求），不用先点按钮
+        LaunchedEffect(Unit) { vm.ensureRatesLoaded() }
+
         OutlinedTextField(
             value = state.rateAmount,
             onValueChange = { vm.setRateAmount(it); vm.computeRate() },
@@ -173,8 +177,12 @@ private fun RateTab(state: NetUiState, vm: NetViewModel) {
             )
         }
 
-        Button(onClick = { vm.loadRates() }, modifier = Modifier.fillMaxWidth()) {
-            Text(if (state.rateLoading) "获取中…" else "获取实时汇率并换算")
+        Button(
+            onClick = { vm.refreshRates() },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !state.rateLoading
+        ) {
+            Text(if (state.rateLoading) "刷新中…" else "刷新汇率并换算")
         }
 
         if (state.rateResult.isNotBlank()) {
@@ -190,23 +198,22 @@ private fun RateTab(state: NetUiState, vm: NetViewModel) {
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary)
                     state.rateTable?.let {
-                        Text(
-                            "数据源 " + it.source + " · 15 分钟内缓存",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "更新于 " + DateUtils.formatDateTime(it.updatedAt) + " · " + it.source,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = { vm.refreshRates() }, enabled = !state.rateLoading) {
+                                Icon(Icons.Filled.Refresh, contentDescription = "刷新汇率")
+                            }
+                        }
                     }
                 }
             }
         }
 
-        HorizontalDivider()
-        Text(
-            "汇率来源：open.er-api.com（免费、无需 Key、160+ 币种），失败自动回退 frankfurter.app。" +
-                "在 App 任意页面（含提问框）输入「美元 人民币」或「100 USD to CNY」会自动跳到本页换算。",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 

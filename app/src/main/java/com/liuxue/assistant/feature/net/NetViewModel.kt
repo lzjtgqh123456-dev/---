@@ -162,7 +162,11 @@ class NetViewModel(app: Application) : AndroidViewModel(app) {
         _ui.value = _ui.value.copy(presets = AiRepository.builtinPresets() + custom)
     }
 
-    fun setTab(t: NetTab) { _ui.value = _ui.value.copy(tab = t) }
+    fun setTab(t: NetTab) {
+        _ui.value = _ui.value.copy(tab = t)
+        // 切到汇率页时自动拉一次（1 分钟缓存内不重复请求），不用用户先点按钮
+        if (t == NetTab.RATE) ensureRatesLoaded()
+    }
     fun clearMessage() { _ui.value = _ui.value.copy(message = null) }
 
     // ---------- 搜索 ----------
@@ -612,10 +616,22 @@ class NetViewModel(app: Application) : AndroidViewModel(app) {
     fun setRateTo(code: String) { _ui.value = _ui.value.copy(rateTo = code.uppercase(), rateResult = "") }
     fun setRateAmount(v: String) { _ui.value = _ui.value.copy(rateAmount = v) }
 
-    /** 拉一次汇率表（15 分钟内存缓存），然后立刻换算一次 */
-    fun loadRates(base: String = _ui.value.rateBase) = viewModelScope.launch {
+    /** 切到汇率页/点刷新时用：没有表或已过期就拉一次；1 分钟内的新数据不重复请求 */
+    fun ensureRatesLoaded() {
+        val s = _ui.value
+        if (s.rateLoading) return
+        val fresh = s.rateTable != null &&
+            System.currentTimeMillis() - (s.rateTable?.updatedAt ?: 0L) < 60_000L
+        if (!fresh) loadRates(s.rateBase)
+    }
+
+    /** 强制刷新（用户点「刷新」） */
+    fun refreshRates() = loadRates(_ui.value.rateBase, force = true)
+
+    /** 拉一次汇率表（1 分钟内存缓存；force=true 时强制重新请求），然后立刻换算一次 */
+    fun loadRates(base: String = _ui.value.rateBase, force: Boolean = false) = viewModelScope.launch {
         _ui.value = _ui.value.copy(rateLoading = true, rateBase = base.uppercase())
-        runCatching { rateRepo.rates(base) }.fold(
+        runCatching { rateRepo.rates(base, force) }.fold(
             onSuccess = { table ->
                 _ui.value = _ui.value.copy(rateLoading = false, rateTable = table)
                 computeRate()
@@ -663,7 +679,7 @@ class NetViewModel(app: Application) : AndroidViewModel(app) {
             rateResult = "",
             message = null
         )
-        loadRates(_ui.value.rateBase)
+        loadRates(_ui.value.rateBase, force = true)
         return true
     }
 

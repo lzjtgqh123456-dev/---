@@ -94,7 +94,12 @@ internal fun ClassReminderDialog(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Switch(checked = enabled, onCheckedChange = { enabled = it })
+                    Switch(checked = enabled, onCheckedChange = {
+                        enabled = it
+                        // 打开提醒时默认只提醒当前选定的班级（有班级筛选的话），
+                        // 避免一开提醒就"提醒全校所有班"；想提醒全部再点「全部班级」。
+                        if (it && scope == null && currentClass != null) scope = currentClass
+                    })
                 }
                 Text("提前多久", style = MaterialTheme.typography.labelMedium)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

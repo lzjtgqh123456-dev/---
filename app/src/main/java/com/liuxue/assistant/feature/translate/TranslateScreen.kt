@@ -16,12 +16,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -58,6 +61,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.liuxue.assistant.data.ocr.OcrModels
@@ -96,6 +100,8 @@ fun TranslateScreen(vm: TranslateViewModel = viewModel<TranslateViewModel>()) {
             Modifier
                 .fillMaxSize()
                 .padding(padding)
+                // 键盘弹出时把内容顶到键盘上方：否则「原文」输入框和「翻译」按钮会被键盘整个盖住
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -488,6 +494,9 @@ private fun TranslationCard(state: TranslateUiState, vm: TranslateViewModel) {
                 label = { Text("原文") },
                 placeholder = { Text("粘贴或输入要翻译的句子，也可以选图片自动识别") },
                 minLines = 3,
+                // 键盘右下角直接是「完成」= 开始翻译，省得被键盘挡住按钮时还得先收键盘
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { vm.translate() }),
                 modifier = Modifier.fillMaxWidth()
             )
             Button(

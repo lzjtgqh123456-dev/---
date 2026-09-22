@@ -5,6 +5,8 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.liuxue.assistant.data.db.AppDatabase
 import com.liuxue.assistant.data.study.Homework
+import com.liuxue.assistant.data.study.StudyPrefs
+import com.liuxue.assistant.domain.ClassFilter
 import com.liuxue.assistant.domain.WeekCalc
 import com.liuxue.assistant.util.DateUtils
 
@@ -35,8 +37,19 @@ class StudyReminderWorker(
 
         val courses = dao.allCourses().associateBy { it.id }
 
+        // 只提醒「本班」的课业。
+        // 班级筛选优先用学业页里选定的班级，其次用「上课提醒」的作用班级；都为空才不筛选。
+        // 不做这层过滤的话，导入了全校课表的人会被提醒全校所有班的课（用户反馈：提醒非本班的全部课程）。
+        val myClass = StudyPrefs(applicationContext).classFilter
+            ?: ClassReminderSettings(applicationContext).className
+        fun isMine(courseId: Long): Boolean {
+            val c = courses[courseId] ?: return true    // 找不到课程就不擅自过滤
+            return ClassFilter.matches(c.className, myClass)
+        }
+
         // ---------- ① 今天的课 ----------
         val today = WeekCalc.todayLessons(dao.allSchedules(), semester, now)
+            .filter { isMine(it.courseId) }
         if (today.isNotEmpty()) {
             val lines = today.map { s ->
                 val c = courses[s.courseId]
@@ -66,7 +79,8 @@ class StudyReminderWorker(
         val openHw = dao.openHomework()
         val dueSoon = openHw.filter { h ->
             h.dueDate != null &&
-                h.dueDate!! <= now + h.remindDaysBefore.toLong() * WeekCalc.MILLIS_PER_DAY
+                h.dueDate!! <= now + h.remindDaysBefore.toLong() * WeekCalc.MILLIS_PER_DAY &&
+                isMine(h.courseId)
         }
         if (dueSoon.isNotEmpty()) {
             val lines = dueSoon.sortedBy { it.dueDate }.map { h ->
@@ -88,7 +102,7 @@ class StudyReminderWorker(
         // ---------- ③ 考试提醒 ----------
         val examSoon = dao.allExams().filter {
             val d = it.examDate - now
-            d in 0..(it.remindDaysBefore.toLong() * WeekCalc.MILLIS_PER_DAY)
+            d in 0..(it.remindDaysBefore.toLong() * WeekCalc.MILLIS_PER_DAY) && isMine(it.courseId)
         }
         if (examSoon.isNotEmpty()) {
             val lines = examSoon.sortedBy { it.examDate }.map { e ->

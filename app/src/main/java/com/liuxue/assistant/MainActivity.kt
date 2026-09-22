@@ -59,6 +59,7 @@ import com.liuxue.assistant.feature.files.FileDetailScreen
 import com.liuxue.assistant.feature.files.FileEditScreen
 import com.liuxue.assistant.feature.files.FileListScreen
 import com.liuxue.assistant.feature.memo.MemoScreen
+import com.liuxue.assistant.feature.transfer.NearbyTransferScreen
 import com.liuxue.assistant.feature.transfer.TransferScreen
 import com.liuxue.assistant.feature.net.NetScreen
 import com.liuxue.assistant.feature.study.HomeworkShare
@@ -226,7 +227,13 @@ private fun AssistantAppShell() {
                     EmergencyScreen(onBack = { navController.popBackStack() })
                 }
                 composable("transfer") {
-                    TransferScreen(onBack = { navController.popBackStack() })
+                    TransferScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenNearby = { navController.navigate("nearby_transfer") }
+                    )
+                }
+                composable("nearby_transfer") {
+                    NearbyTransferScreen(onBack = { navController.popBackStack() })
                 }
                 composable("translate") {
                     TranslateScreen()

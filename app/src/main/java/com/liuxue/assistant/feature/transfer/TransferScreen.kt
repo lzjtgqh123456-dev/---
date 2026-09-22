@@ -49,6 +49,7 @@ import com.liuxue.assistant.util.ShareUtils
 @Composable
 fun TransferScreen(
     onBack: () -> Unit,
+    onOpenNearby: () -> Unit = {},
     vm: TransferViewModel = viewModel<TransferViewModel>()
 ) {
     val state by vm.state.collectAsState(initial = TransferState())
@@ -91,6 +92,25 @@ fun TransferScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+
+            Card(colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+            )) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("面对面快传", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold)
+                    Text(
+                        "两台手机 Wi-Fi Direct 直连，完全离线、不费流量，任意文件随意互传（不限类型/大小）；" +
+                            "收到的文件在系统「下载 / 留学助手快传」。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Button(onClick = onOpenNearby, modifier = Modifier.fillMaxWidth()) {
+                        Text("打开面对面快传")
+                    }
+                }
+            }
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

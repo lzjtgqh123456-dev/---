@@ -13,8 +13,8 @@ android {
         applicationId = "com.liuxue.assistant"
         minSdk = 26
         targetSdk = 35
-        versionCode = 14
-        versionName = "0.9.5"
+        versionCode = 15
+        versionName = "0.9.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // 只为 arm64 打包原生推理库（其它 ABI 无此库，加载时优雅降级）
         ndk { abiFilters.add("arm64-v8a") }
@@ -46,7 +46,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 
     // 只为 arm64 打包原生推理库（其它 ABI 没有该库，加载时会优雅降级）
     defaultConfig {
